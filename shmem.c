@@ -142,6 +142,14 @@ int shmget (key_t key, size_t size, int flags)
 		pthread_mutex_unlock (mutex);
 		return -1;
 	}
+	if (ashmem_pin_region (shmem[idx].descriptor, 0, 0) < 0)
+	{
+		__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: ashmem_pin_region() failed for size %ld: %s", __PRETTY_FUNCTION__, size, strerror(errno));
+		shmem_amount --;
+		shmem = realloc (shmem, shmem_amount * sizeof(shmem_t));
+		pthread_mutex_unlock (mutex);
+		return -1;
+	}
 	pthread_mutex_unlock (mutex);
 	return get_shmid(idx);
 }
