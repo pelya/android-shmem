@@ -1,0 +1,3 @@
+[submodule "libancillary"]
+	path = libancillary
+	url = git://gitorious.org/libancillary/libancillary.git
