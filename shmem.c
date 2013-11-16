@@ -158,15 +158,17 @@ int shmget (key_t key, size_t size, int flags)
 		return -1;
 	}
 	DBG ("%s: ID %d shmid %x FD %d size %zu", __PRETTY_FUNCTION__, idx, get_shmid(idx), shmem[idx].descriptor, shmem[idx].size);
+	/*
 	status = ashmem_set_prot_region (shmem[idx].descriptor, 0666);
 	if (status < 0)
 	{
-		DBG ("%s: ashmem_pin_region() failed for size %zu: %s %d", __PRETTY_FUNCTION__, size, strerror(status), status);
+		DBG ("%s: ashmem_set_prot_region() failed for size %zu: %s %d", __PRETTY_FUNCTION__, size, strerror(status), status);
 		shmem_amount --;
 		shmem = realloc (shmem, shmem_amount * sizeof(shmem_t));
 		pthread_mutex_unlock (&mutex);
 		return -1;
 	}
+	*/
 	/*
 	status = ashmem_pin_region (shmem[idx].descriptor, 0, shmem[idx].size);
 	if (status < 0)
