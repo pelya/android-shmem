@@ -167,6 +167,7 @@ int shmget (key_t key, size_t size, int flags)
 		pthread_mutex_unlock (&mutex);
 		return -1;
 	}
+	/*
 	status = ashmem_pin_region (shmem[idx].descriptor, 0, shmem[idx].size);
 	if (status < 0)
 	{
@@ -176,6 +177,7 @@ int shmget (key_t key, size_t size, int flags)
 		pthread_mutex_unlock (&mutex);
 		return -1;
 	}
+	*/
 	DBG ("%s: return ID %d shmid %x FD %d size %zu", __PRETTY_FUNCTION__, idx, get_shmid(idx), shmem[idx].descriptor, shmem[idx].size);
 	pthread_mutex_unlock (&mutex);
 
