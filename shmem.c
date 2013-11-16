@@ -202,12 +202,12 @@ static int shm_find_id(int shmid)
 				return idx;
 			}
 		}
-		DBG ("%s: ERROR: cannot find shmid %x", __PRETTY_FUNCTION__, shmid);
+		DBG ("%s: cannot find remote shmid %x", __PRETTY_FUNCTION__, shmid);
 		return -1;
 	}
 	if (idx >= shmem_amount)
 	{
-		DBG ("%s: ERROR: local ID %d > total amount %zu", __PRETTY_FUNCTION__, idx, shmem_amount);
+		DBG ("%s: local ID %d > total amount %zu", __PRETTY_FUNCTION__, idx, shmem_amount);
 		pthread_mutex_unlock (&mutex);
 		return -1;
 	}
@@ -242,11 +242,16 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 
 		pthread_mutex_unlock (&mutex);
 
+		DBG ("%s:%d: sockid %d", __PRETTY_FUNCTION__, __LINE__, sid);
+
 		idx = get_index (shmid);
 		memset (&addr, 0, sizeof(addr));
 		addr.sun_family = AF_UNIX;
-		sprintf (addr.sun_path + 1, SOCKNAME, sid);
+		sprintf (&addr.sun_path[1], SOCKNAME, sid);
 		addrlen = sizeof(addr.sun_family) + strlen(&addr.sun_path[1]) + 1;
+
+		DBG ("%s:%d: addr %s", __PRETTY_FUNCTION__, __LINE__, &addr.sun_path[1]);
+
 		recvsock = socket (AF_UNIX, SOCK_STREAM, 0);
 		if (!recvsock)
 		{
@@ -261,6 +266,9 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 			errno = EINVAL;
 			return (void *)-1;
 		}
+
+		DBG ("%s:%d: connected to socket %s", __PRETTY_FUNCTION__, __LINE__, &addr.sun_path[1]);
+
 		if (send (recvsock, &idx, sizeof(idx), 0) != sizeof(idx))
 		{
 			DBG ("%s: send() failed on socket %s: %s", __PRETTY_FUNCTION__, addr.sun_path + 1, strerror(errno));
@@ -268,6 +276,7 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 			errno = EINVAL;
 			return (void *)-1;
 		}
+
 		if (ancil_recv_fd (recvsock, &descriptor) != 0)
 		{
 			DBG ("%s: ERROR: ancil_recv_fd() failed on socket %s: %s", __PRETTY_FUNCTION__, addr.sun_path + 1, strerror(errno));
@@ -276,13 +285,18 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 			return (void *)-1;
 		}
 		close (recvsock);
+
+		DBG ("%s:%d: got FD %d", __PRETTY_FUNCTION__, __LINE__, descriptor);
+
 		size = ashmem_get_size_region(descriptor);
-		if (shmem[idx].size == 0 || shmem[idx].size == -1)
+		if (size == 0 || size == -1)
 		{
 			DBG ("%s: ERROR: ashmem_get_size_region() returned %d on socket %s: %s", __PRETTY_FUNCTION__, size, addr.sun_path + 1, strerror(errno));
 			errno = EINVAL;
 			return (void *)-1;
 		}
+
+		DBG ("%s:%d: got size %d", __PRETTY_FUNCTION__, __LINE__, size);
 
 		pthread_mutex_lock (&mutex);
 		idx = shmem_amount;
