@@ -5,9 +5,18 @@
 #include <sys/un.h>
 #include <errno.h>
 #include <pthread.h>
-#include <android/log.h>
 
+#ifdef __ANDROID__
+#include <android/log.h>
 #include "sys/shm.h"
+
+#define DBG(...) __android_log_print(ANDROID_LOG_INFO, "shmem", __VA_ARGS__)
+#else
+#include <sys/shm.h>
+
+#define DBG(...) fprintf(stderr, __VA_ARGS__)
+#endif
+
 #include "libancillary/ancillary.h"
 #include "cutils/ashmem.h"
 
@@ -47,13 +56,13 @@ static void *listening_thread(void * arg)
 	struct sockaddr_un addr;
 	socklen_t len = sizeof(addr);
 	int sendsock;
-	__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: thread started", __PRETTY_FUNCTION__);
+	DBG ("%s: thread started", __PRETTY_FUNCTION__);
 	while ((sendsock = accept (sock, (struct sockaddr *)&addr, &len)) != -1)
 	{
 		unsigned int index;
 		if (recv (sendsock, &index, sizeof(shmid), 0) != sizeof(shmid))
 		{
-			__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: ERROR: recv() returned not %d bytes", __PRETTY_FUNCTION__, sizeof(shmid));
+			DBG ("%s: ERROR: recv() returned not %d bytes", __PRETTY_FUNCTION__, sizeof(shmid));
 			close (sendsock);
 			continue;
 		}
@@ -61,17 +70,17 @@ static void *listening_thread(void * arg)
 		if (index < shmem_amount)
 		{
 			if (ancil_send_fd (sendsock, shmem[index].descriptor) != 0)
-				__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: ERROR: ancil_send_fd() failed: %s", __PRETTY_FUNCTION__, strerror(errno));
+				DBG ("%s: ERROR: ancil_send_fd() failed: %s", __PRETTY_FUNCTION__, strerror(errno));
 		}
 		else
 		{
-			__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: ERROR: index %d >= shmem_amount %d", __PRETTY_FUNCTION__, index, shmem_amount);
+			DBG ("%s: ERROR: index %d >= shmem_amount %d", __PRETTY_FUNCTION__, index, shmem_amount);
 		}
 		pthread_mutex_unlock (mutex);
 		close (sendsock);
 		len = sizeof(addr);
 	}
-	__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: ERROR: listen() failed, thread stopped", __PRETTY_FUNCTION__);
+	DBG ("%s: ERROR: listen() failed, thread stopped", __PRETTY_FUNCTION__);
 }
 
 /* Get shared memory segment.  */
@@ -80,10 +89,10 @@ int shmget (key_t key, size_t size, int flags)
 	char buf[256];
 	int idx;
 
-	__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: key %d size %ld flags %d", __PRETTY_FUNCTION__, key, size, flags);
+	DBG ("%s: key %d size %ld flags %d", __PRETTY_FUNCTION__, key, size, flags);
 	if (key != IPC_PRIVATE || flags != 0)
 	{
-		__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: key %d != IPC_PRIVATE, flags %d != 0,  this is not supported", __PRETTY_FUNCTION__, key, flags);
+		DBG ("%s: key %d != IPC_PRIVATE, flags %d != 0,  this is not supported", __PRETTY_FUNCTION__, key, flags);
 		errno = EINVAL;
 		return -1;
 	}
@@ -93,7 +102,7 @@ int shmget (key_t key, size_t size, int flags)
 		sock = socket (AF_UNIX, SOCK_STREAM, 0);
 		if (!sock)
 		{
-			__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: cannot create UNIX socket: %s", __PRETTY_FUNCTION__, strerror(errno));
+			DBG ("%s: cannot create UNIX socket: %s", __PRETTY_FUNCTION__, strerror(errno));
 			errno = EINVAL;
 			return -1;
 		}
@@ -105,22 +114,22 @@ int shmget (key_t key, size_t size, int flags)
 			sprintf (addr.sun_path + 1, SOCKNAME, i);
 			if (bind (sock, (struct sockaddr *)&addr, sizeof(addr.sun_family) + strlen(addr.sun_path) + 1) != 0)
 			{
-				__android_log_print (ANDROID_LOG_VERBOSE, "shmem", "%s: cannot bind UNIX socket %s: %s, trying next one", __PRETTY_FUNCTION__, addr.sun_path + 1, strerror(errno));
+				DBG ("%s: cannot bind UNIX socket %s: %s, trying next one", __PRETTY_FUNCTION__, addr.sun_path + 1, strerror(errno));
 				continue;
 			}
-			__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: bound UNIX socket %s", __PRETTY_FUNCTION__, addr.sun_path + 1);
+			DBG ("%s: bound UNIX socket %s", __PRETTY_FUNCTION__, addr.sun_path + 1);
 			sockid = i;
 			break;
 		}
 		if (i == 65536)
 		{
-			__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: cannot bind UNIX socket, bailing out", __PRETTY_FUNCTION__);
+			DBG ("%s: cannot bind UNIX socket, bailing out", __PRETTY_FUNCTION__);
 			errno = ENOMEM;
 			return -1;
 		}
 		if (listen (sock, 4) != 0)
 		{
-			__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: listen failed", __PRETTY_FUNCTION__);
+			DBG ("%s: listen failed", __PRETTY_FUNCTION__);
 			errno = ENOMEM;
 			return -1;
 		}
@@ -138,7 +147,7 @@ int shmget (key_t key, size_t size, int flags)
 	shmem[idx].remote = 0;
 	if (shmem[idx].descriptor < 0)
 	{
-		__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: ashmem_create_region() failed for size %ld: %s", __PRETTY_FUNCTION__, size, strerror(errno));
+		DBG ("%s: ashmem_create_region() failed for size %ld: %s", __PRETTY_FUNCTION__, size, strerror(errno));
 		shmem_amount --;
 		shmem = realloc (shmem, shmem_amount * sizeof(shmem_t));
 		pthread_mutex_unlock (mutex);
@@ -146,13 +155,13 @@ int shmget (key_t key, size_t size, int flags)
 	}
 	if (ashmem_pin_region (shmem[idx].descriptor, 0, 0) < 0)
 	{
-		__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: ashmem_pin_region() failed for size %ld: %s", __PRETTY_FUNCTION__, size, strerror(errno));
+		DBG ("%s: ashmem_pin_region() failed for size %ld: %s", __PRETTY_FUNCTION__, size, strerror(errno));
 		shmem_amount --;
 		shmem = realloc (shmem, shmem_amount * sizeof(shmem_t));
 		pthread_mutex_unlock (mutex);
 		return -1;
 	}
-	__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: return ID %d shmid %x FD %d size %lu", __PRETTY_FUNCTION__, idx, get_shmid(idx), shmem[idx].descriptor, shmem[idx].size);
+	DBG ("%s: return ID %d shmid %x FD %d size %lu", __PRETTY_FUNCTION__, idx, get_shmid(idx), shmem[idx].descriptor, shmem[idx].size);
 	pthread_mutex_unlock (mutex);
 
 	return get_shmid(idx);
@@ -164,11 +173,11 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 	unsigned int idx = get_index (shmid);
 	int sid = get_sockid (shmid);
 	void *addr;
-	__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: shmid %x shmaddr %p shmflg %d", __PRETTY_FUNCTION__, shmid, shmaddr, shmflg);
+	DBG ("%s: shmid %x shmaddr %p shmflg %d", __PRETTY_FUNCTION__, shmid, shmaddr, shmflg);
 
 	if (shmaddr != NULL)
 	{
-		__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: ashmem_create_region() failed for size %ld: %s", __PRETTY_FUNCTION__, size, strerror(errno));
+		DBG ("%s: ashmem_create_region() failed for size %ld: %s", __PRETTY_FUNCTION__, size, strerror(errno));
 		errno = EINVAL;
 		return -1;
 	}
@@ -201,27 +210,27 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 		recvsock = socket (AF_UNIX, SOCK_STREAM, 0);
 		if (!recvsock)
 		{
-			__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: cannot create UNIX socket: %s", __PRETTY_FUNCTION__, strerror(errno));
+			DBG ("%s: cannot create UNIX socket: %s", __PRETTY_FUNCTION__, strerror(errno));
 			errno = EINVAL;
 			return -1;
 		}
 		if (!connect (recvsock) != 0)
 		{
-			__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: cannot connect to UNIX socket %s: %s", __PRETTY_FUNCTION__, addr.sun_path + 1, strerror(errno));
+			DBG ("%s: cannot connect to UNIX socket %s: %s", __PRETTY_FUNCTION__, addr.sun_path + 1, strerror(errno));
 			close (recvsock);
 			errno = EINVAL;
 			return -1;
 		}
 		if (send (recvsock, &idx, sizeof(idx), 0) != sizeof(idx))
 		{
-			__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: send() failed on socket %s: %s", __PRETTY_FUNCTION__, addr.sun_path + 1, strerror(errno));
+			DBG ("%s: send() failed on socket %s: %s", __PRETTY_FUNCTION__, addr.sun_path + 1, strerror(errno));
 			close (recvsock);
 			errno = EINVAL;
 			return -1;
 		}
 		if (ancil_recv_fd (sendsock, &descriptor) != 0)
 		{
-			__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: ERROR: ancil_recv_fd() failed on socket %s: %s", __PRETTY_FUNCTION__, addr.sun_path + 1, strerror(errno));
+			DBG ("%s: ERROR: ancil_recv_fd() failed on socket %s: %s", __PRETTY_FUNCTION__, addr.sun_path + 1, strerror(errno));
 			close (recvsock);
 			errno = EINVAL;
 			return -1;
@@ -230,7 +239,7 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 		size = ashmem_get_size_region(descriptor);
 		if (shmem[idx].size == 0 || shmem[idx].size == -1)
 		{
-			__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: ERROR: ashmem_get_size_region() returned %d on socket %s: %s", __PRETTY_FUNCTION__, size, addr.sun_path + 1, strerror(errno));
+			DBG ("%s: ERROR: ashmem_get_size_region() returned %d on socket %s: %s", __PRETTY_FUNCTION__, size, addr.sun_path + 1, strerror(errno));
 			errno = EINVAL;
 			return -1;
 		}
@@ -243,14 +252,14 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 		shmem[idx].descriptor = descriptor;
 		shmem[idx].size = size;
 		shmem[idx].addr = NULL;
-		__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: created new remote shmem ID %d shmid %x FD %d size %lu: %s", __PRETTY_FUNCTION__, idx, shmid, shmem[idx].descriptor, shmem[idx].size);
+		DBG ("%s: created new remote shmem ID %d shmid %x FD %d size %lu: %s", __PRETTY_FUNCTION__, idx, shmid, shmem[idx].descriptor, shmem[idx].size);
 		pthread_mutex_unlock (mutex);
 	}
 
 	pthread_mutex_lock (mutex);
 	if (idx >= shmem_amount)
 	{
-		__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: local ID %d > total amount %lu", __PRETTY_FUNCTION__, idx, shmem_amount);
+		DBG ("%s: local ID %d > total amount %lu", __PRETTY_FUNCTION__, idx, shmem_amount);
 		pthread_mutex_unlock (mutex);
 		return -1;
 	}
@@ -259,12 +268,12 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 		shmem[idx].addr = mmap(NULL, shmem[idx].size, PROT_READ | (shmflg == 0 ? PROT_WRITE : 0), MAP_SHARED, shmem[idx].descriptor, 0);
 		if (shmem[idx].addr == MAP_FAILED)
 		{
-			__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: mmap() failed for ID %x FD %d: %s", __PRETTY_FUNCTION__, idx, shmem[idx].descriptor, strerror(errno));
+			DBG ("%s: mmap() failed for ID %x FD %d: %s", __PRETTY_FUNCTION__, idx, shmem[idx].descriptor, strerror(errno));
 			shmem[idx].addr = NULL;
 		}
 	}
 	addr = shmem[idx].addr;
-	__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: mapped addr %p for FD %d ID %d", __PRETTY_FUNCTION__, addr, shmem[idx].descriptor, idx);
+	DBG ("%s: mapped addr %p for FD %d ID %d", __PRETTY_FUNCTION__, addr, shmem[idx].descriptor, idx);
 	pthread_mutex_unlock (mutex);
 
 	return addr ? addr : -1;
@@ -279,16 +288,16 @@ int shmdt (const void *shmaddr)
 		if (shmem[i].addr == shmaddr)
 		{
 			if (munmap (shmem[i].addr, shmem[i].size) != 0)
-				__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: munmap %p failed", __PRETTY_FUNCTION__, shmaddr);
+				DBG ("%s: munmap %p failed", __PRETTY_FUNCTION__, shmaddr);
 			shmem[i].addr = NULL;
-			__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: unmapped addr %p for FD %d ID %d", __PRETTY_FUNCTION__, addr, shmem[i].descriptor, i);
+			DBG ("%s: unmapped addr %p for FD %d ID %d", __PRETTY_FUNCTION__, addr, shmem[i].descriptor, i);
 			pthread_mutex_unlock (mutex);
 			return 0;
 		}
 	}
 	pthread_mutex_unlock (mutex);
 
-	__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: invalid address %p", __PRETTY_FUNCTION__, shmaddr);
+	DBG ("%s: invalid address %p", __PRETTY_FUNCTION__, shmaddr);
 	errno = EINVAL;
 	return -1;
 }
@@ -296,7 +305,7 @@ int shmdt (const void *shmaddr)
 /* Shared memory control operation.  */
 int shmctl (int shmid, int cmd, struct shmid_ds *buf)
 {
-	__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: shmid %x cmd %d buf %p", __PRETTY_FUNCTION__, shmid, cmd, buf);
-	__android_log_print (ANDROID_LOG_INFO, "shmem", "%s: not implemented yet!", __PRETTY_FUNCTION__);
+	DBG ("%s: shmid %x cmd %d buf %p", __PRETTY_FUNCTION__, shmid, cmd, buf);
+	DBG ("%s: not implemented yet!", __PRETTY_FUNCTION__);
 	return -1;
 }

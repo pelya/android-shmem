@@ -27,7 +27,11 @@
 #include <sys/ioctl.h>
 #include <fcntl.h>
 
+#ifdef __ANDROID__
 #include <linux/ashmem.h>
+#else
+#include "linux/ashmem.h"
+#endif
 #include <cutils/ashmem.h>
 
 #define ASHMEM_DEVICE	"/dev/ashmem"
@@ -50,7 +54,8 @@ int ashmem_create_region(const char *name, size_t size)
 	if (name) {
 		char buf[ASHMEM_NAME_LEN] = {0};
 
-		strlcpy(buf, name, sizeof(buf));
+		strncpy(buf, name, sizeof(buf));
+		buf[sizeof(buf)-1] = 0;
 		ret = ioctl(fd, ASHMEM_SET_NAME, buf);
 		if (ret < 0)
 			goto error;
