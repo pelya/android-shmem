@@ -15,7 +15,7 @@
 #else
 #include <sys/shm.h>
 
-#define DBG(...) fprintf(stderr, __VA_ARGS__)
+#define DBG(format, ...) fprintf(stderr, format "\n", __VA_ARGS__)
 #endif
 
 #include "libancillary/ancillary.h"
@@ -90,10 +90,10 @@ int shmget (key_t key, size_t size, int flags)
 	char buf[256];
 	int idx;
 
-	DBG ("%s: key %d size %zu flags %d", __PRETTY_FUNCTION__, key, size, flags);
-	if (key != IPC_PRIVATE || flags != 0)
+	DBG ("%s: key %d size %zu flags %d (flags are ignored)", __PRETTY_FUNCTION__, key, size, flags);
+	if (key != IPC_PRIVATE)
 	{
-		DBG ("%s: key %d != IPC_PRIVATE, flags %d != 0,  this is not supported", __PRETTY_FUNCTION__, key, flags);
+		DBG ("%s: key %d != IPC_PRIVATE,  this is not supported", __PRETTY_FUNCTION__, key, flags);
 		errno = EINVAL;
 		return -1;
 	}
