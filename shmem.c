@@ -89,6 +89,7 @@ int shmget (key_t key, size_t size, int flags)
 {
 	char buf[256];
 	int idx;
+	int status;
 
 	DBG ("%s: key %d size %zu flags 0%o (flags are ignored)", __PRETTY_FUNCTION__, key, size, flags);
 	if (key != IPC_PRIVATE)
@@ -156,9 +157,20 @@ int shmget (key_t key, size_t size, int flags)
 		pthread_mutex_unlock (&mutex);
 		return -1;
 	}
-	if (ashmem_pin_region (shmem[idx].descriptor, 0, 0) < 0)
+	DBG ("%s: ID %d shmid %x FD %d size %zu", __PRETTY_FUNCTION__, idx, get_shmid(idx), shmem[idx].descriptor, shmem[idx].size);
+	status = ashmem_set_prot_region (shmem[idx].descriptor, 0666);
+	if (status < 0)
 	{
-		DBG ("%s: ashmem_pin_region() failed for size %zu: %s", __PRETTY_FUNCTION__, size, strerror(errno));
+		DBG ("%s: ashmem_pin_region() failed for size %zu: %s %d", __PRETTY_FUNCTION__, size, strerror(status), status);
+		shmem_amount --;
+		shmem = realloc (shmem, shmem_amount * sizeof(shmem_t));
+		pthread_mutex_unlock (&mutex);
+		return -1;
+	}
+	status = ashmem_pin_region (shmem[idx].descriptor, 0, shmem[idx].size);
+	if (status < 0)
+	{
+		DBG ("%s: ashmem_pin_region() failed for size %zu: %s %d", __PRETTY_FUNCTION__, size, strerror(status), status);
 		shmem_amount --;
 		shmem = realloc (shmem, shmem_amount * sizeof(shmem_t));
 		pthread_mutex_unlock (&mutex);
