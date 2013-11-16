@@ -42,17 +42,17 @@ extern "C" {
 /* Type to count number of attaches.  */
 typedef unsigned long int shmatt_t;
 typedef long int __long_time_t; /* to keep compatibility to Debian Wheezy armhf */
+/*
 typedef int32_t __key_t;
 typedef __key_t key_t;
-/*
 typedef uint32_t __uid_t;
 typedef uint32_t __gid_t;
 */
 
 /* Data structure used to pass permission information to IPC operations.  */
-struct ipc_perm
+struct debian_ipc_perm /* We cannot use Android version, because there are no padding fields */
   {
-    __key_t __key;			/* Key.  */
+    key_t __key;			/* Key.  */
     __uid_t uid;			/* Owner's user ID.  */
     __gid_t gid;			/* Owner's group ID.  */
     __uid_t cuid;			/* Creator's user ID.  */
@@ -68,7 +68,7 @@ struct ipc_perm
 /* Data structure describing a shared memory segment.  */
 struct shmid_ds
   {
-    struct ipc_perm shm_perm;		/* operation permission struct */
+    struct debian_ipc_perm shm_perm;		/* operation permission struct */
     size_t shm_segsz;			/* size of segment in bytes */
     __long_time_t shm_atime;			/* time of last shmat() */
     unsigned long int __unused1;
