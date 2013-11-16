@@ -107,15 +107,17 @@ int shmget (key_t key, size_t size, int flags)
 			errno = EINVAL;
 			return -1;
 		}
-		for (i = 1; i < 65536; i++)
+		for (i = 1; i < 1024; i++)
 		{
 			struct sockaddr_un addr;
+			int len;
 			memset (&addr, 0, sizeof(addr));
 			addr.sun_family = AF_UNIX;
-			sprintf (addr.sun_path + 1, SOCKNAME, i);
-			if (bind (sock, (struct sockaddr *)&addr, sizeof(addr.sun_family) + strlen(addr.sun_path) + 1) != 0)
+			sprintf (&addr.sun_path[1], SOCKNAME, i);
+			len = sizeof(addr.sun_family) + strlen(&addr.sun_path[1]) + 1;
+			if (bind (sock, (struct sockaddr *)&addr, len) != 0)
 			{
-				DBG ("%s: cannot bind UNIX socket %s: %s, trying next one", __PRETTY_FUNCTION__, addr.sun_path + 1, strerror(errno));
+				DBG ("%s: cannot bind UNIX socket %s: %s, trying next one, len %d", __PRETTY_FUNCTION__, &addr.sun_path[1], strerror(errno), len);
 				continue;
 			}
 			DBG ("%s: bound UNIX socket %s", __PRETTY_FUNCTION__, addr.sun_path + 1);
@@ -217,6 +219,7 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 	if (idx == -1 && sid != sockid)
 	{
 		struct sockaddr_un addr;
+		int addrlen;
 		int recvsock;
 		int descriptor;
 		int size;
@@ -227,6 +230,7 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 		memset (&addr, 0, sizeof(addr));
 		addr.sun_family = AF_UNIX;
 		sprintf (addr.sun_path + 1, SOCKNAME, sid);
+		addrlen = sizeof(addr.sun_family) + strlen(&addr.sun_path[1]) + 1;
 		recvsock = socket (AF_UNIX, SOCK_STREAM, 0);
 		if (!recvsock)
 		{
@@ -234,9 +238,9 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 			errno = EINVAL;
 			return (void *)-1;
 		}
-		if (connect (recvsock, (struct sockaddr *)&addr, sizeof(addr.sun_family) + strlen(addr.sun_path) + 1) != 0)
+		if (connect (recvsock, (struct sockaddr *)&addr, addrlen) != 0)
 		{
-			DBG ("%s: cannot connect to UNIX socket %s: %s", __PRETTY_FUNCTION__, addr.sun_path + 1, strerror(errno));
+			DBG ("%s: cannot connect to UNIX socket %s: %s, len %d", __PRETTY_FUNCTION__, addr.sun_path + 1, strerror(errno), addrlen);
 			close (recvsock);
 			errno = EINVAL;
 			return (void *)-1;
