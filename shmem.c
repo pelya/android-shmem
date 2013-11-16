@@ -90,7 +90,7 @@ int shmget (key_t key, size_t size, int flags)
 	char buf[256];
 	int idx;
 
-	DBG ("%s: key %d size %zu flags %d (flags are ignored)", __PRETTY_FUNCTION__, key, size, flags);
+	DBG ("%s: key %d size %zu flags 0%o (flags are ignored)", __PRETTY_FUNCTION__, key, size, flags);
 	if (key != IPC_PRIVATE)
 	{
 		DBG ("%s: key %d != IPC_PRIVATE,  this is not supported", __PRETTY_FUNCTION__, key, flags);
