@@ -384,8 +384,11 @@ static int shm_remove (int shmid)
 		close (shmem[idx].descriptor);
 		shmem[idx].descriptor = 0;
 		pthread_mutex_unlock (&mutex);
+		return 0;
+		/*
 		errno = EINVAL;
 		return -1;
+		*/
 	}
 	if (shmem[idx].descriptor)
 		close (shmem[idx].descriptor);
