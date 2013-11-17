@@ -345,13 +345,14 @@ int shmdt (const void *shmaddr)
 				DBG ("%s: munmap %p failed", __PRETTY_FUNCTION__, shmaddr);
 			shmem[i].addr = NULL;
 			DBG ("%s: unmapped addr %p for FD %d ID %d shmidx %x", __PRETTY_FUNCTION__, shmaddr, shmem[i].descriptor, i, shmem[i].remote);
+			/*
 			if (!shmem[i].descriptor)
 			{
 				DBG ("%s: Removing shmem entry for ID %d shmidx %x", __PRETTY_FUNCTION__, i, shmem[i].remote);
 				shmem_amount --;
 				memmove (&shmem[i], &shmem[i+1], (shmem_amount - i) * sizeof(shmem_t));
 			}
-
+			*/
 			pthread_mutex_unlock (&mutex);
 			return 0;
 		}
@@ -381,14 +382,13 @@ static int shm_remove (int shmid)
 	if (shmem[idx].addr)
 	{
 		DBG ("%s: WARNING: shmid %x is still mapped to addr %p, call shmdt() first", __PRETTY_FUNCTION__, shmid, shmem[idx].addr);
+		/*
 		close (shmem[idx].descriptor);
 		shmem[idx].descriptor = 0;
+		*/
 		pthread_mutex_unlock (&mutex);
-		return 0;
-		/*
 		errno = EINVAL;
 		return -1;
-		*/
 	}
 	if (shmem[idx].descriptor)
 		close (shmem[idx].descriptor);
