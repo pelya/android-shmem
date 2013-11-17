@@ -94,7 +94,7 @@ int shmget (key_t key, size_t size, int flags)
 	DBG ("%s: key %d size %zu flags 0%o (flags are ignored)", __PRETTY_FUNCTION__, key, size, flags);
 	if (key != IPC_PRIVATE)
 	{
-		DBG ("%s: key %d != IPC_PRIVATE,  this is not supported", __PRETTY_FUNCTION__, key, flags);
+		DBG ("%s: key %d != IPC_PRIVATE,  this is not supported", __PRETTY_FUNCTION__, key);
 		errno = EINVAL;
 		return -1;
 	}
@@ -118,14 +118,14 @@ int shmget (key_t key, size_t size, int flags)
 			len = sizeof(addr.sun_family) + strlen(&addr.sun_path[1]) + 1;
 			if (bind (sock, (struct sockaddr *)&addr, len) != 0)
 			{
-				DBG ("%s: cannot bind UNIX socket %s: %s, trying next one, len %d", __PRETTY_FUNCTION__, &addr.sun_path[1], strerror(errno), len);
+				//DBG ("%s: cannot bind UNIX socket %s: %s, trying next one, len %d", __PRETTY_FUNCTION__, &addr.sun_path[1], strerror(errno), len);
 				continue;
 			}
 			DBG ("%s: bound UNIX socket %s", __PRETTY_FUNCTION__, addr.sun_path + 1);
 			sockid = i;
 			break;
 		}
-		if (i == 65536)
+		if (i == 1024)
 		{
 			DBG ("%s: cannot bind UNIX socket, bailing out", __PRETTY_FUNCTION__);
 			errno = ENOMEM;
@@ -148,7 +148,7 @@ int shmget (key_t key, size_t size, int flags)
 	shmem[idx].size = size;
 	shmem[idx].descriptor = ashmem_create_region (buf, size);
 	shmem[idx].addr = NULL;
-	shmem[idx].remote = 0;
+	shmem[idx].remote = get_shmid(idx);
 	if (shmem[idx].descriptor < 0)
 	{
 		DBG ("%s: ashmem_create_region() failed for size %zu: %s", __PRETTY_FUNCTION__, size, strerror(errno));
@@ -344,7 +344,14 @@ int shmdt (const void *shmaddr)
 			if (munmap (shmem[i].addr, shmem[i].size) != 0)
 				DBG ("%s: munmap %p failed", __PRETTY_FUNCTION__, shmaddr);
 			shmem[i].addr = NULL;
-			DBG ("%s: unmapped addr %p for FD %d ID %d", __PRETTY_FUNCTION__, shmaddr, shmem[i].descriptor, i);
+			DBG ("%s: unmapped addr %p for FD %d ID %d shmidx %x", __PRETTY_FUNCTION__, shmaddr, shmem[i].descriptor, i, shmem[i].remote);
+			if (!shmem[i].descriptor)
+			{
+				DBG ("%s: Removing shmem entry for ID %d shmidx %x", __PRETTY_FUNCTION__, i, shmem[i].remote);
+				shmem_amount --;
+				memmove (&shmem[i], &shmem[i+1], (shmem_amount - i) * sizeof(shmem_t));
+			}
+
 			pthread_mutex_unlock (&mutex);
 			return 0;
 		}
@@ -373,12 +380,15 @@ static int shm_remove (int shmid)
 
 	if (shmem[idx].addr)
 	{
-		DBG ("%s: ERROR: shmid %x is still mapped to addr %p, call shmdt() first", __PRETTY_FUNCTION__, shmid, shmem[idx].addr);
+		DBG ("%s: WARNING: shmid %x is still mapped to addr %p, call shmdt() first", __PRETTY_FUNCTION__, shmid, shmem[idx].addr);
+		close (shmem[idx].descriptor);
+		shmem[idx].descriptor = 0;
 		pthread_mutex_unlock (&mutex);
 		errno = EINVAL;
 		return -1;
 	}
-	close (shmem[idx].descriptor);
+	if (shmem[idx].descriptor)
+		close (shmem[idx].descriptor);
 	shmem_amount --;
 	memmove (&shmem[idx], &shmem[idx+1], (shmem_amount - idx) * sizeof(shmem_t));
 	pthread_mutex_unlock (&mutex);
