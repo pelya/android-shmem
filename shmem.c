@@ -401,7 +401,6 @@ static int shm_remove (int shmid)
 static int shm_stat (int shmid, struct shmid_ds *buf)
 {
 	int idx;
-	DBG ("%s: shmid %x", __PRETTY_FUNCTION__, shmid);
 
 	pthread_mutex_lock (&mutex);
 	idx = shm_find_id (shmid);
@@ -431,6 +430,9 @@ static int shm_stat (int shmid, struct shmid_ds *buf)
 	buf->shm_perm.cgid = getegid();
 	buf->shm_perm.mode = 0666;
 	buf->shm_perm.__seq = 1;
+
+	DBG ("%s: shmid %x size %d", __PRETTY_FUNCTION__, shmid, buf->shm_segsz);
+
 	pthread_mutex_unlock (&mutex);
 	return 0;
 }
