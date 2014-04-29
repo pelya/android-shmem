@@ -9,6 +9,10 @@ it uses Linux sendmsg/recvmsg API to transfer file handlers.
 Before compiling it, run
 git submodule update --init libancillary
 
+Also, you will need to add to your CFLAGS:
+-D_LINUX_IPC_H -Dipc_perm=debian_ipc_perm
+if you link to this library from Android code.
+
 The most obvious reasons to use this lib is to speed up Linux GUI applications,
 connected to XServer on Android - it will work for both
 Xtightvnc Xserver inside Linux chroot, and for standalone Xserver,
