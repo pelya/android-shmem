@@ -38,6 +38,9 @@ static int sockid = 0;
 #define SOCKNAME "/dev/shm/%08x"
 #define ROUND_UP(N, S) ((((N) + (S) - 1) / (S)) * (S))
 
+// KDE libs seem to depend on huge pagesize = 64K
+#define getpagesize() 65536
+
 static int get_shmid(unsigned int index)
 {
 	return sockid * 0x10000 + index;
