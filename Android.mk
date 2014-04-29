@@ -5,7 +5,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := android-shmem
 
 LOCAL_C_INCLUDES := $(LOCAL_PATH)
-LOCAL_CFLAGS := -O3 -I$(LOCAL_PATH)/libancillary
+LOCAL_CFLAGS := -O3 -I$(LOCAL_PATH)/libancillary -D_LINUX_IPC_H
 
 LOCAL_CPP_EXTENSION := .cpp
 
