@@ -38,9 +38,6 @@ static int sockid = 0;
 #define SOCKNAME "/dev/shm/%08x"
 #define ROUND_UP(N, S) ((((N) + (S) - 1) / (S)) * (S))
 
-// KDE libs seem to depend on huge pagesize = 64K
-#define getpagesize() 65536
-
 static int get_shmid(unsigned int index)
 {
 	return sockid * 0x10000 + index;
@@ -359,7 +356,7 @@ int shmdt (const void *shmaddr)
 				DBG ("%s: munmap %p failed", __PRETTY_FUNCTION__, shmaddr);
 			shmem[i].addr = NULL;
 			DBG ("%s: unmapped addr %p for FD %d ID %d shmid %x", __PRETTY_FUNCTION__, shmaddr, shmem[i].descriptor, i, shmem[i].remote);
-			if (shmem[i].markedForDeletion)
+			if (shmem[i].markedForDeletion || get_sockid (shmem[i].remote) != sockid)
 			{
 				DBG ("%s: deleting shmid %x", __PRETTY_FUNCTION__, shmem[i].remote);
 				delete_shmem(i);
