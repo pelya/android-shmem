@@ -29,6 +29,7 @@ typedef struct
 	void *addr;
 	int descriptor;
 	size_t size;
+	int markedForDeletion;
 } shmem_t;
 static shmem_t *shmem = NULL;
 static size_t shmem_amount = 0;
@@ -108,7 +109,7 @@ int shmget (key_t key, size_t size, int flags)
 			errno = EINVAL;
 			return -1;
 		}
-		for (i = 1; i < 1024; i++)
+		for (i = 1; i < 4096; i++)
 		{
 			struct sockaddr_un addr;
 			int len;
@@ -125,7 +126,7 @@ int shmget (key_t key, size_t size, int flags)
 			sockid = i;
 			break;
 		}
-		if (i == 1024)
+		if (i == 4096)
 		{
 			DBG ("%s: cannot bind UNIX socket, bailing out", __PRETTY_FUNCTION__);
 			errno = ENOMEM;
@@ -149,6 +150,7 @@ int shmget (key_t key, size_t size, int flags)
 	shmem[idx].descriptor = ashmem_create_region (buf, size);
 	shmem[idx].addr = NULL;
 	shmem[idx].remote = get_shmid(idx);
+	shmem[idx].markedForDeletion = 0;
 	if (shmem[idx].descriptor < 0)
 	{
 		DBG ("%s: ashmem_create_region() failed for size %zu: %s", __PRETTY_FUNCTION__, size, strerror(errno));
@@ -306,6 +308,7 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 		shmem[idx].descriptor = descriptor;
 		shmem[idx].size = size;
 		shmem[idx].addr = NULL;
+		shmem[idx].markedForDeletion = 0;
 		DBG ("%s: created new remote shmem ID %d shmid %x FD %d size %zu", __PRETTY_FUNCTION__, idx, shmid, shmem[idx].descriptor, shmem[idx].size);
 	}
 
@@ -332,6 +335,14 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 	return addr ? addr : (void *)-1;
 }
 
+static void delete_shmem(int idx)
+{
+	if (shmem[idx].descriptor)
+		close (shmem[idx].descriptor);
+	shmem_amount --;
+	memmove (&shmem[idx], &shmem[idx+1], (shmem_amount - idx) * sizeof(shmem_t));
+}
+
 /* Detach shared memory segment.  */
 int shmdt (const void *shmaddr)
 {
@@ -344,15 +355,12 @@ int shmdt (const void *shmaddr)
 			if (munmap (shmem[i].addr, shmem[i].size) != 0)
 				DBG ("%s: munmap %p failed", __PRETTY_FUNCTION__, shmaddr);
 			shmem[i].addr = NULL;
-			DBG ("%s: unmapped addr %p for FD %d ID %d shmidx %x", __PRETTY_FUNCTION__, shmaddr, shmem[i].descriptor, i, shmem[i].remote);
-			/*
-			if (!shmem[i].descriptor)
+			DBG ("%s: unmapped addr %p for FD %d ID %d shmid %x", __PRETTY_FUNCTION__, shmaddr, shmem[i].descriptor, i, shmem[i].remote);
+			if (shmem[i].markedForDeletion)
 			{
-				DBG ("%s: Removing shmem entry for ID %d shmidx %x", __PRETTY_FUNCTION__, i, shmem[i].remote);
-				shmem_amount --;
-				memmove (&shmem[i], &shmem[i+1], (shmem_amount - i) * sizeof(shmem_t));
+				DBG ("%s: deleting shmid %x", __PRETTY_FUNCTION__, shmem[i].remote);
+				delete_shmem(i);
 			}
-			*/
 			pthread_mutex_unlock (&mutex);
 			return 0;
 		}
@@ -367,8 +375,8 @@ int shmdt (const void *shmaddr)
 static int shm_remove (int shmid)
 {
 	int idx;
-	DBG ("%s: shmid %x", __PRETTY_FUNCTION__, shmid);
 
+	DBG ("%s: shmid %x", __PRETTY_FUNCTION__, shmid);
 	pthread_mutex_lock (&mutex);
 	idx = shm_find_id (shmid);
 	if (idx == -1)
@@ -381,19 +389,13 @@ static int shm_remove (int shmid)
 
 	if (shmem[idx].addr)
 	{
-		DBG ("%s: WARNING: shmid %x is still mapped to addr %p, call shmdt() first", __PRETTY_FUNCTION__, shmid, shmem[idx].addr);
-		/*
-		close (shmem[idx].descriptor);
-		shmem[idx].descriptor = 0;
-		*/
+		DBG ("%s: shmid %x is still mapped to addr %p, it will be deleted on shmdt() call", __PRETTY_FUNCTION__, shmid, shmem[idx].addr);
+		// KDE lib creates shared memory segment, marks it for deletion, and then uses it as if it's not deleted
+		shmem[idx].markedForDeletion = 1;
 		pthread_mutex_unlock (&mutex);
-		errno = EINVAL;
-		return -1;
+		return 0;
 	}
-	if (shmem[idx].descriptor)
-		close (shmem[idx].descriptor);
-	shmem_amount --;
-	memmove (&shmem[idx], &shmem[idx+1], (shmem_amount - idx) * sizeof(shmem_t));
+	delete_shmem(idx);
 	pthread_mutex_unlock (&mutex);
 	return 0;
 }
