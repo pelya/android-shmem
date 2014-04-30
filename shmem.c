@@ -76,9 +76,9 @@ static void *listening_thread(void * arg)
 	{
 		unsigned int shmid;
 		int idx;
-		if (recv (sendsock, &shmid, sizeof(shmid), 0) != sizeof(index))
+		if (recv (sendsock, &shmid, sizeof(shmid), 0) != sizeof(shmid))
 		{
-			DBG ("%s: ERROR: recv() returned not %d bytes", __PRETTY_FUNCTION__, sizeof(index));
+			DBG ("%s: ERROR: recv() returned not %d bytes", __PRETTY_FUNCTION__, sizeof(shmid));
 			close (sendsock);
 			continue;
 		}
