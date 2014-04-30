@@ -90,7 +90,7 @@ static void *listening_thread(void * arg)
 				DBG ("%s: ERROR: ancil_send_fd() failed: %s", __PRETTY_FUNCTION__, strerror(errno));
 		}
 		else
-			DBG ("%s: ERROR: index %d >= shmem_amount %d", __PRETTY_FUNCTION__, index, shmem_amount);
+			DBG ("%s: ERROR: cannot find shmid 0x%x", __PRETTY_FUNCTION__, shmid);
 		pthread_mutex_unlock (&mutex);
 		close (sendsock);
 		len = sizeof(addr);
