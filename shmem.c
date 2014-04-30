@@ -54,6 +54,18 @@ static unsigned int get_index(int shmid)
 	return shmid % 0x10000;
 }
 
+static int shm_find_id(int shmid)
+{
+	int i;
+	for (i = 0; i < shmem_amount; i++)
+	{
+		if (shmem[i].id == shmid)
+			return i;
+	}
+	DBG ("%s: cannot find shmid %x", __PRETTY_FUNCTION__, shmid);
+	return -1;
+}
+
 static void *listening_thread(void * arg)
 {
 	struct sockaddr_un addr;
@@ -62,23 +74,23 @@ static void *listening_thread(void * arg)
 	DBG ("%s: thread started", __PRETTY_FUNCTION__);
 	while ((sendsock = accept (sock, (struct sockaddr *)&addr, &len)) != -1)
 	{
-		unsigned int index;
-		if (recv (sendsock, &index, sizeof(index), 0) != sizeof(index))
+		unsigned int shmid;
+		int idx;
+		if (recv (sendsock, &shmid, sizeof(shmid), 0) != sizeof(index))
 		{
 			DBG ("%s: ERROR: recv() returned not %d bytes", __PRETTY_FUNCTION__, sizeof(index));
 			close (sendsock);
 			continue;
 		}
 		pthread_mutex_lock (&mutex);
-		if (index < shmem_amount)
+		idx = shm_find_id (shmid);
+		if (idx != -1)
 		{
-			if (ancil_send_fd (sendsock, shmem[index].descriptor) != 0)
+			if (ancil_send_fd (sendsock, shmem[idx].descriptor) != 0)
 				DBG ("%s: ERROR: ancil_send_fd() failed: %s", __PRETTY_FUNCTION__, strerror(errno));
 		}
 		else
-		{
 			DBG ("%s: ERROR: index %d >= shmem_amount %d", __PRETTY_FUNCTION__, index, shmem_amount);
-		}
 		pthread_mutex_unlock (&mutex);
 		close (sendsock);
 		len = sizeof(addr);
@@ -191,18 +203,6 @@ int shmget (key_t key, size_t size, int flags)
 	return get_shmid(shmid);
 }
 
-static int shm_find_id(int shmid)
-{
-	int i;
-	for (i = 0; i < shmem_amount; i++)
-	{
-		if (shmem[i].id == shmid)
-			return i;
-	}
-	DBG ("%s: cannot find shmid %x", __PRETTY_FUNCTION__, shmid);
-	return -1;
-}
-
 /* Attach shared memory segment.  */
 void *shmat (int shmid, const void *shmaddr, int shmflg)
 {
@@ -231,7 +231,7 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 
 		pthread_mutex_unlock (&mutex);
 
-		DBG ("%s:%d: sockid %d", __PRETTY_FUNCTION__, __LINE__, sid);
+		DBG ("%s: sockid %x", __PRETTY_FUNCTION__, sid);
 
 		idx = get_index (shmid);
 		memset (&addr, 0, sizeof(addr));
@@ -239,7 +239,7 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 		sprintf (&addr.sun_path[1], SOCKNAME, sid);
 		addrlen = sizeof(addr.sun_family) + strlen(&addr.sun_path[1]) + 1;
 
-		DBG ("%s:%d: addr %s", __PRETTY_FUNCTION__, __LINE__, &addr.sun_path[1]);
+		DBG ("%s: addr %s", __PRETTY_FUNCTION__, &addr.sun_path[1]);
 
 		recvsock = socket (AF_UNIX, SOCK_STREAM, 0);
 		if (!recvsock)
@@ -256,7 +256,7 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 			return (void *)-1;
 		}
 
-		DBG ("%s:%d: connected to socket %s", __PRETTY_FUNCTION__, __LINE__, &addr.sun_path[1]);
+		DBG ("%s: connected to socket %s", __PRETTY_FUNCTION__, &addr.sun_path[1]);
 
 		if (send (recvsock, &idx, sizeof(idx), 0) != sizeof(idx))
 		{
@@ -275,7 +275,7 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 		}
 		close (recvsock);
 
-		DBG ("%s:%d: got FD %d", __PRETTY_FUNCTION__, __LINE__, descriptor);
+		DBG ("%s: got FD %d", __PRETTY_FUNCTION__, descriptor);
 
 		size = ashmem_get_size_region(descriptor);
 		if (size == 0 || size == -1)
@@ -285,7 +285,7 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 			return (void *)-1;
 		}
 
-		DBG ("%s:%d: got size %d", __PRETTY_FUNCTION__, __LINE__, size);
+		DBG ("%s: got size %d", __PRETTY_FUNCTION__, size);
 
 		pthread_mutex_lock (&mutex);
 		idx = shmem_amount;
