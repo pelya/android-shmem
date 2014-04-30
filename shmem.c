@@ -76,13 +76,14 @@ static void *listening_thread(void * arg)
 	{
 		unsigned int shmid;
 		int idx;
-		if (recv (sendsock, &shmid, sizeof(shmid), 0) != sizeof(shmid))
+		if (recv (sendsock, &idx, sizeof(idx), 0) != sizeof(idx))
 		{
-			DBG ("%s: ERROR: recv() returned not %d bytes", __PRETTY_FUNCTION__, sizeof(shmid));
+			DBG ("%s: ERROR: recv() returned not %d bytes", __PRETTY_FUNCTION__, sizeof(idx));
 			close (sendsock);
 			continue;
 		}
 		pthread_mutex_lock (&mutex);
+		shmid = get_shmid (idx);
 		idx = shm_find_id (shmid);
 		if (idx != -1)
 		{
@@ -96,6 +97,7 @@ static void *listening_thread(void * arg)
 		len = sizeof(addr);
 	}
 	DBG ("%s: ERROR: listen() failed, thread stopped", __PRETTY_FUNCTION__);
+	return NULL;
 }
 
 /* Get shared memory segment.  */
@@ -103,7 +105,6 @@ int shmget (key_t key, size_t size, int flags)
 {
 	char buf[256];
 	int idx;
-	int status;
 
 	DBG ("%s: key %d size %zu flags 0%o (flags are ignored)", __PRETTY_FUNCTION__, key, size, flags);
 	if (key != IPC_PRIVATE)
