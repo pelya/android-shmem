@@ -25,7 +25,7 @@ static pthread_t listening_thread_id = 0;
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 typedef struct
 {
-	int remote;
+	int id;
 	void *addr;
 	int descriptor;
 	size_t size;
@@ -33,6 +33,7 @@ typedef struct
 } shmem_t;
 static shmem_t *shmem = NULL;
 static size_t shmem_amount = 0;
+static size_t shmem_counter = 0;
 static int sock = 0;
 static int sockid = 0;
 #define SOCKNAME "/dev/shm/%08x"
@@ -109,13 +110,14 @@ int shmget (key_t key, size_t size, int flags)
 			errno = EINVAL;
 			return -1;
 		}
-		for (i = 1; i < 4096; i++)
+		for (i = 0; i < 4096; i++)
 		{
 			struct sockaddr_un addr;
 			int len;
 			memset (&addr, 0, sizeof(addr));
 			addr.sun_family = AF_UNIX;
-			sprintf (&addr.sun_path[1], SOCKNAME, i);
+			sockid = (getpid() + i) & 0xffff;
+			sprintf (&addr.sun_path[1], SOCKNAME, sockid);
 			len = sizeof(addr.sun_family) + strlen(&addr.sun_path[1]) + 1;
 			if (bind (sock, (struct sockaddr *)&addr, len) != 0)
 			{
@@ -123,12 +125,12 @@ int shmget (key_t key, size_t size, int flags)
 				continue;
 			}
 			DBG ("%s: bound UNIX socket %s", __PRETTY_FUNCTION__, addr.sun_path + 1);
-			sockid = i;
 			break;
 		}
 		if (i == 4096)
 		{
 			DBG ("%s: cannot bind UNIX socket, bailing out", __PRETTY_FUNCTION__);
+			sockid = 0;
 			errno = ENOMEM;
 			return -1;
 		}
@@ -144,12 +146,14 @@ int shmget (key_t key, size_t size, int flags)
 	idx = shmem_amount;
 	sprintf (buf, SOCKNAME "-%d", sockid, idx);
 	shmem_amount ++;
+	shmem_counter = (shmem_counter + 1) & 0x7fff;
+	size_t shmid = shmem_counter;
 	shmem = realloc (shmem, shmem_amount * sizeof(shmem_t));
 	size = ROUND_UP(size, getpagesize ());
 	shmem[idx].size = size;
 	shmem[idx].descriptor = ashmem_create_region (buf, size);
 	shmem[idx].addr = NULL;
-	shmem[idx].remote = get_shmid(idx);
+	shmem[idx].id = get_shmid(shmid);
 	shmem[idx].markedForDeletion = 0;
 	if (shmem[idx].descriptor < 0)
 	{
@@ -159,7 +163,7 @@ int shmget (key_t key, size_t size, int flags)
 		pthread_mutex_unlock (&mutex);
 		return -1;
 	}
-	DBG ("%s: ID %d shmid %x FD %d size %zu", __PRETTY_FUNCTION__, idx, get_shmid(idx), shmem[idx].descriptor, shmem[idx].size);
+	DBG ("%s: ID %d shmid %x FD %d size %zu", __PRETTY_FUNCTION__, idx, get_shmid(shmid), shmem[idx].descriptor, shmem[idx].size);
 	/*
 	status = ashmem_set_prot_region (shmem[idx].descriptor, 0666);
 	if (status < 0)
@@ -182,38 +186,21 @@ int shmget (key_t key, size_t size, int flags)
 		return -1;
 	}
 	*/
-	DBG ("%s: return ID %d shmid %x FD %d size %zu", __PRETTY_FUNCTION__, idx, get_shmid(idx), shmem[idx].descriptor, shmem[idx].size);
 	pthread_mutex_unlock (&mutex);
 
-	return get_shmid(idx);
+	return get_shmid(shmid);
 }
 
 static int shm_find_id(int shmid)
 {
-	unsigned int idx = get_index (shmid);
-	int sid = get_sockid (shmid);
-	if (sid != sockid)
+	int i;
+	for (i = 0; i < shmem_amount; i++)
 	{
-		int i;
-		for (i = 0; i < shmem_amount; i++)
-		{
-			if (shmem[i].remote == shmid)
-			{
-				idx = i;
-				sid = sockid;
-				return idx;
-			}
-		}
-		DBG ("%s: cannot find remote shmid %x", __PRETTY_FUNCTION__, shmid);
-		return -1;
+		if (shmem[i].id == shmid)
+			return i;
 	}
-	if (idx >= shmem_amount)
-	{
-		DBG ("%s: local ID %d > total amount %zu", __PRETTY_FUNCTION__, idx, shmem_amount);
-		pthread_mutex_unlock (&mutex);
-		return -1;
-	}
-	return idx;
+	DBG ("%s: cannot find shmid %x", __PRETTY_FUNCTION__, shmid);
+	return -1;
 }
 
 /* Attach shared memory segment.  */
@@ -304,7 +291,7 @@ void *shmat (int shmid, const void *shmaddr, int shmflg)
 		idx = shmem_amount;
 		shmem_amount ++;
 		shmem = realloc (shmem, shmem_amount * sizeof(shmem_t));
-		shmem[idx].remote = shmid;
+		shmem[idx].id = shmid;
 		shmem[idx].descriptor = descriptor;
 		shmem[idx].size = size;
 		shmem[idx].addr = NULL;
@@ -355,10 +342,10 @@ int shmdt (const void *shmaddr)
 			if (munmap (shmem[i].addr, shmem[i].size) != 0)
 				DBG ("%s: munmap %p failed", __PRETTY_FUNCTION__, shmaddr);
 			shmem[i].addr = NULL;
-			DBG ("%s: unmapped addr %p for FD %d ID %d shmid %x", __PRETTY_FUNCTION__, shmaddr, shmem[i].descriptor, i, shmem[i].remote);
-			if (shmem[i].markedForDeletion || get_sockid (shmem[i].remote) != sockid)
+			DBG ("%s: unmapped addr %p for FD %d ID %d shmid %x", __PRETTY_FUNCTION__, shmaddr, shmem[i].descriptor, i, shmem[i].id);
+			if (shmem[i].markedForDeletion || get_sockid (shmem[i].id) != sockid)
 			{
-				DBG ("%s: deleting shmid %x", __PRETTY_FUNCTION__, shmem[i].remote);
+				DBG ("%s: deleting shmid %x", __PRETTY_FUNCTION__, shmem[i].id);
 				delete_shmem(i);
 			}
 			pthread_mutex_unlock (&mutex);
@@ -376,7 +363,7 @@ static int shm_remove (int shmid)
 {
 	int idx;
 
-	DBG ("%s: shmid %x", __PRETTY_FUNCTION__, shmid);
+	DBG ("%s: deleting shmid %x", __PRETTY_FUNCTION__, shmid);
 	pthread_mutex_lock (&mutex);
 	idx = shm_find_id (shmid);
 	if (idx == -1)
@@ -442,7 +429,7 @@ static int shm_stat (int shmid, struct shmid_ds *buf)
 /* Shared memory control operation.  */
 int shmctl (int shmid, int cmd, struct shmid_ds *buf)
 {
-	DBG ("%s: shmid %x cmd %d buf %p", __PRETTY_FUNCTION__, shmid, cmd, buf);
+	//DBG ("%s: shmid %x cmd %d buf %p", __PRETTY_FUNCTION__, shmid, cmd, buf);
 	if (cmd == IPC_RMID)
 	{
 		return shm_remove (shmid);
