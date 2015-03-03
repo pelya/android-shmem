@@ -13,8 +13,10 @@ LOCAL_SRC_FILES := $(notdir $(wildcard $(LOCAL_PATH)/*.c))
 
 LOCAL_SHARED_LIBRARIES := -llog
 
-LOCAL_STATIC_LIBRARIES := 
+LOCAL_STATIC_LIBRARIES :=
 
 LOCAL_LDFLAGS := -Wl,--version-script=$(LOCAL_PATH)/exports.txt
+
+LOCAL_LDLIBS := -L$(SYSROOT)/usr/lib -llog
 
 include $(BUILD_SHARED_LIBRARY)
