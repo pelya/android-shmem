@@ -1,3 +1,5 @@
 [submodule "libancillary"]
 	path = libancillary
 	url = https://github.com/pelya/libancillary.git
+	branch = master
+	update = merge

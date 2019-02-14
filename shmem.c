@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -78,7 +79,7 @@ static void *listening_thread(void * arg)
 		int idx;
 		if (recv (sendsock, &idx, sizeof(idx), 0) != sizeof(idx))
 		{
-			DBG ("%s: ERROR: recv() returned not %d bytes", __PRETTY_FUNCTION__, sizeof(idx));
+			DBG ("%s: ERROR: recv() returned not %d bytes", __PRETTY_FUNCTION__, (int)sizeof(idx));
 			close (sendsock);
 			continue;
 		}
@@ -421,7 +422,7 @@ static int shm_stat (int shmid, struct shmid_ds *buf)
 	buf->shm_perm.mode = 0666;
 	buf->shm_perm.__seq = 1;
 
-	DBG ("%s: shmid %x size %d", __PRETTY_FUNCTION__, shmid, buf->shm_segsz);
+	DBG ("%s: shmid %x size %d", __PRETTY_FUNCTION__, shmid, (int)buf->shm_segsz);
 
 	pthread_mutex_unlock (&mutex);
 	return 0;
