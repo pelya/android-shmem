@@ -6,7 +6,7 @@ SRCS:=$(wildcard *.c)
 all: libandroid-shmem-$(ARCH).so
 
 libandroid-shmem-$(ARCH).so: libancillary/ancillary.h $(SRCS)
-	$(CC) -shared -fpic -std=gnu99 -Wall $(SRCS) -I . -I libancillary $(CFLAGS) \
+	$(CC) -shared -fPIC -std=gnu99 -Wall $(SRCS) -I . -I libancillary $(CFLAGS) \
 		-o $@ -Wl,--version-script=exports.txt -lc -lpthread $(LDFLAGS)
 	strip $@
 
