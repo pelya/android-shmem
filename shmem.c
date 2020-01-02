@@ -13,7 +13,7 @@
 #include "sys/shm.h"
 
 #ifdef NDEBUG
-#define DBG(...)
+#define DBG(...) do {} while (0)
 #else
 #define DBG(...) __android_log_print(ANDROID_LOG_INFO, "shmem", __VA_ARGS__)
 #endif
