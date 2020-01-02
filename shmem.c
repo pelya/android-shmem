@@ -12,7 +12,11 @@
 #include <android/log.h>
 #include "sys/shm.h"
 
+#ifdef NDEBUG
+#define DBG(...)
+#else
 #define DBG(...) __android_log_print(ANDROID_LOG_INFO, "shmem", __VA_ARGS__)
+#endif
 #else
 #include <sys/shm.h>
 
